@@ -1,35 +1,59 @@
+import os
 import cv2
 import numpy as np
-from motor_control import move_forward, stop_car, steer_with_rack_pinion, cleanup
+#from motor_control import move_forward, stop_car, steer_with_rack_pinion, cleanup
 from camera_processing import preprocess_frame
 from nn_model import NeuralNetwork
-from EvalNNSencilla import evaluate_neural_network
 
 # Mapeo de direcciones
 DIRECTIONS = {
-    0: "right",
-    1: "left",
-    2: "forward",
-    3: "stop"
+    0: "adelante",
+    1: "derecha",
+    2: "izquierda",
+    3: "alto"
 }
 
-def train_model():
-    # Cargar datos de entrenamiento (simulado)
-    X_train = []  # Aquí irán las imágenes preprocesadas
-    y_train = []  # Aquí irán las etiquetas
+# Función para cargar datos de entrenamiento desde directorios
+def load_training_data(data_dir, classes, img_size=(64, 64)):
+    label_map = {label: idx for idx, label in enumerate(classes)}
+    X_train = []
+    y_train = []
 
-    # Simulación: cargar datos desde directorios
-    for label, direction in DIRECTIONS.items():
-        for i in range(100):  # Simular 100 imágenes por clase
-            img = np.random.rand(32, 32)  # Reemplaza con la carga real de imágenes
-            X_train.append(img.flatten())
-            y_train.append(np.eye(4)[label])  # Etiqueta en formato one-hot
+    for class_name in classes:
+        class_dir = os.path.join(data_dir, class_name)
+        if not os.path.isdir(class_dir):
+            print(f"Directorio no encontrado: {class_dir}")
+            continue
+
+        for img_name in os.listdir(class_dir):
+            img_path = os.path.join(class_dir, img_name)
+            img = cv2.imread(img_path, cv2.IMREAD_GRAYSCALE)
+            if img is None:
+                print(f"No se pudo cargar la imagen: {img_path}")
+                continue
+
+            img = cv2.resize(img, img_size)
+            img = img / 255.0
+            X_train.append(img.flatten())  # Convertimos en vector
+            y_train.append(np.eye(len(classes))[label_map[class_name]])  # Etiqueta en formato one-hot
 
     X_train = np.array(X_train)
     y_train = np.array(y_train)
+    return X_train, y_train
+
+def train_model():
+    # Configuración de datos
+    DATA_DIR = r"C:\Users\LALO TORRES\Downloads\data" #Directorio de DATOS
+    CLASSES = ["adelante", "derecha", "izquierda", "alto"]
+
+    # Cargar datos
+    print("Cargando datos de entrenamiento...")
+    X_train, y_train = load_training_data(DATA_DIR, CLASSES)
+    print(f"Datos cargados: {len(X_train)} imágenes")
 
     # Crear y entrenar modelo
-    model = NeuralNetwork(input_size=1024, hidden_size=64, output_size=4)
+    print("Entrenando el modelo...")
+    model = NeuralNetwork(input_size=4096, hidden_size=64, output_size=4)
     model.train(X_train, y_train, epochs=1000)
     model.save_model("nn_model.pkl")
     print("Entrenamiento completado y modelo guardado.")
@@ -54,16 +78,11 @@ def main():
             prediction = model.predict(input_data)
             predicted_label = np.argmax(prediction)
             direction = DIRECTIONS[predicted_label]
-            
-            # Esta red esta hecha sin bibliotecas para NN, usarla solo devuelve un valor numerico que debe ser evaluado
-            
-            # output = evaluate_neural_network(X_sample, load_path="trained_params.npy")
-            # print(f"Salida de la red para la muestra: {output}")
 
             # Controlar el carrito
-            if direction == "forward":
+            if direction == "adelante":
                 move_forward()
-            elif direction == "stop":
+            elif direction == "alto":
                 stop_car()
             else:
                 steer_with_rack_pinion(direction)
@@ -88,3 +107,6 @@ if __name__ == "__main__":
         main()
     else:
         print("Modo no válido. Usa 'train' o 'predict'.")
+        
+
+

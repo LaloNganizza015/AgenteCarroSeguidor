@@ -5,7 +5,7 @@ import os
 def load_and_preprocess_images(image_folder, img_size=(32, 32)):
     images = []
     labels = []
-    classes = {'right': 0, 'left': 1, 'forward': 2, 'stop': 3}
+    classes = {'adelante': 0, 'derecha': 1, 'izquierda': 2, 'alto': 3}
     
     for label, class_id in classes.items():
         class_folder = os.path.join(image_folder, label)
