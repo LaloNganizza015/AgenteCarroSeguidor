@@ -1,0 +1,55 @@
+import cv2
+import numpy as np
+import tensorflow as tf
+
+# Función para preprocesar las imágenes de la cámara
+def preprocess_image(frame):
+    img = cv2.resize(frame, (128, 128))  # Usamos 128x128 para mantener la consistencia
+    img = img / 255.0  # Normalizar a rango [0, 1]
+    img = np.expand_dims(img, axis=0)  # Añadir dimensión de batch
+    return img
+
+# Cargar el modelo entrenado
+model = tf.keras.models.load_model('redNeuronalfere.keras')
+
+# Clases detectadas, agregando la clase "ninguna"
+class_names = {0: 'adelante', 1: 'alto', 2: 'derecha', 3: 'izquierda', 4: 'ninguna'}
+
+# Umbral de confianza para la predicción
+confidence_threshold = 0.7  # Puedes ajustar este umbral según tus necesidades
+
+# Abrir la cámara
+cap = cv2.VideoCapture(0)
+
+while True:
+    ret, frame = cap.read()
+    if not ret:
+        break
+
+    # Preprocesar la imagen de la cámara
+    img = preprocess_image(frame)
+
+    # Hacer predicción
+    predictions = model.predict(img)
+    probabilidad_maxima = np.max(predictions)  # Obtener la probabilidad máxima
+    class_idx = np.argmax(predictions, axis=1)  # Índice de la clase predicha
+
+    # Verificar si la probabilidad máxima es mayor al umbral
+    if probabilidad_maxima >= confidence_threshold:
+        # Si la probabilidad es alta, devolver la clase predicha
+        predicted_class = class_names[class_idx[0]]
+    else:
+        # Si la probabilidad es baja, asignar la clase "ninguna"
+        predicted_class = 'ninguna'
+
+    # Mostrar la predicción en la pantalla
+    cv2.putText(frame, f'Prediccion: {predicted_class}', (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+    cv2.imshow('Detector de Señales de Tráfico', frame)
+
+    # Salir del bucle si presionas la tecla 'q'
+    if cv2.waitKey(1) & 0xFF == ord('q'):
+        break
+
+# Liberar recursos
+cap.release()
+cv2.destroyAllWindows()
