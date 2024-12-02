@@ -1,90 +1,72 @@
 import RPi.GPIO as GPIO
 import time
+import motor_control as mc
 
-# Pines del sensor PIR
-pir_pin = 16  # Cambia según la conexión física
+# Pines del sensor ultrasónico HC-SR04 de la parte trasera
+ultrasonico_trigger_2 = 20  # Pin TRIG del sensor
+ultrasonico_echo_2 = 21     # Pin ECHO del sensor
 
-# Pines del sensor ultrasónico HC-SR04
-ultrasonico_trigger = 20  # Pin TRIG del sensor
-ultrasonico_echo = 21     # Pin ECHO del sensor
-
-# Pin del sensor de sonido (micrófono)
-microfono_pin = 12  # Cambia según tu conexión
+# Pines del sensor ultrasónico HC-SR04 de la parte frontal
+ultrasonico_trigger_1 = 16  # Pin TRIG del sensor
+ultrasonico_echo_1 = 12     # Pin ECHO del sensor
 
 # Configuración de GPIO
 GPIO.setmode(GPIO.BCM)
-GPIO.setup(pir_pin, GPIO.IN)
-GPIO.setup(ultrasonico_trigger, GPIO.OUT)
-GPIO.setup(ultrasonico_echo, GPIO.IN)
-GPIO.setup(microfono_pin, GPIO.IN)
+GPIO.setup(ultrasonico_trigger_1, GPIO.OUT)
+GPIO.setup(ultrasonico_echo_1, GPIO.IN)
+GPIO.setup(ultrasonico_trigger_2, GPIO.OUT)
+GPIO.setup(ultrasonico_echo_2, GPIO.IN)
 
-# Función para leer el sensor ultrasónico
-def medir_distancia():
+# Función para medir la distancia de un sensor ultrasónico
+def medir_distancia(trigger, echo):
     # Enviar pulso de activación
-    GPIO.output(ultrasonico_trigger, True)
+    GPIO.output(trigger, True)
     time.sleep(0.00001)  # Pulso de 10µs
-    GPIO.output(ultrasonico_trigger, False)
+    GPIO.output(trigger, False)
 
     # Medir el tiempo de ida y vuelta
-    while GPIO.input(ultrasonico_echo) == 0:
+    inicio_pulso = time.time()
+    while GPIO.input(echo) == 0:
         inicio_pulso = time.time()
-    while GPIO.input(ultrasonico_echo) == 1:
-        fin_pulso = time.time()
+        if time.time() - inicio_pulso > 0.1:  # Evitar bucle infinito (timeout de 100ms)
+            return float('inf')  # Retornar infinito si no se detecta respuesta
 
+    while GPIO.input(echo) == 1:
+        fin_pulso = time.time()
+        if time.time() - inicio_pulso > 0.1:  # Evitar bucle infinito
+            return float('inf')  # Retornar infinito si no se detecta respuesta
+
+    # Calcular distancia
     duracion_pulso = fin_pulso - inicio_pulso
     distancia = duracion_pulso * 34300 / 2  # Velocidad del sonido: 34300 cm/s
-
     return distancia
-
-# Función para leer el sensor PIR
-def detectar_movimiento():
-    if GPIO.input(pir_pin):
-        print("Movimiento detectado por PIR")
-        detener_carro()  # Detener el vehículo
-    else:
-        print("No se detecta movimiento")
-
-# Función para leer el sensor de sonido
-def detectar_sonido():
-    if GPIO.input(microfono_pin):
-        print("Sonido fuerte detectado")
-        detener_carro()  # Detener el vehículo
-    else:
-        print("Nivel de sonido normal")
 
 # Función para monitorear los sensores
 def monitorear_sensores():
     try:
         while True:
-            # Leer datos de los sensores
-            distancia = medir_distancia()
-            print(f"Distancia medida: {distancia:.2f} cm")
+            # Leer distancias de ambos sensores
+            distancia_frontal = medir_distancia(ultrasonico_trigger_1, ultrasonico_echo_1)
+            time.sleep(0.1)  # Evitar interferencia entre sensores
+            distancia_trasera = medir_distancia(ultrasonico_trigger_2, ultrasonico_echo_2)
+
+            # Imprimir distancias
+            print(f"Distancia Frontal: {distancia_frontal:.2f} cm | Distancia Trasera: {distancia_trasera:.2f} cm")
 
             # Verificar distancia mínima segura
-            if distancia < 30:  # Umbral de 30 cm
-                print("Obstáculo detectado, deteniendo vehículo")
-                detener_carro()
-            
-            # Leer el sensor PIR
-            detectar_movimiento()
+            if distancia_frontal < 15:
+                print("Obstáculo detectado en el frente, deteniendo vehículo")
+                mc.detener_carro()
 
-            # Leer el sensor de sonido
-            detectar_sonido()
+            if distancia_trasera < 15:
+                print("Obstáculo detectado atrás, deteniendo vehículo")
+                mc.detener_carro()
 
             time.sleep(0.5)  # Intervalo entre lecturas
     except KeyboardInterrupt:
         print("Finalizando monitoreo...")
     finally:
         GPIO.cleanup()
-
-# Función para detener el vehículo
-def detener_carro():
-    pwm_del_izq.ChangeDutyCycle(0)
-    pwm_del_der.ChangeDutyCycle(0)
-    pwm_tras_izq.ChangeDutyCycle(0)
-    pwm_tras_der.ChangeDutyCycle(0)
-    servo.ChangeDutyCycle(7.5)  # Posición neutral para el servo
-    print("Vehículo detenido")
 
 # Iniciar monitoreo
 monitorear_sensores()
